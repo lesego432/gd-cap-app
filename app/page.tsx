@@ -15,11 +15,37 @@ interface School {
   latitude: number;
 }
 
+type UserRole = 'District Manager' | 'School Principal' | 'Provincial Leadership';
+
+const ROLE_THEMES: Record<UserRole, { ringBorder: string; dotBg: string; glowRgb: string; badgeBg: string; textAccent: string }> = {
+  'Provincial Leadership': {
+    ringBorder: 'border-amber-400',
+    dotBg: 'bg-amber-400',
+    glowRgb: 'rgba(245, 158, 11, 0.15)',
+    badgeBg: 'bg-amber-500/10 border-amber-500/30 text-amber-400',
+    textAccent: 'text-amber-400',
+  },
+  'District Manager': {
+    ringBorder: 'border-blue-400',
+    dotBg: 'bg-blue-400',
+    glowRgb: 'rgba(59, 130, 246, 0.15)',
+    badgeBg: 'bg-blue-500/10 border-blue-500/30 text-blue-400',
+    textAccent: 'text-blue-400',
+  },
+  'School Principal': {
+    ringBorder: 'border-emerald-400',
+    dotBg: 'bg-emerald-400',
+    glowRgb: 'rgba(16, 185, 129, 0.15)',
+    badgeBg: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400',
+    textAccent: 'text-emerald-400',
+  },
+};
+
 export default function Dashboard() {
   const [schools, setSchools] = useState<School[]>([]);
   const [loading, setLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userRole, setUserRole] = useState<'District Manager' | 'School Principal' | 'Provincial Leadership'>('District Manager');
+  const [userRole, setUserRole] = useState<UserRole>('District Manager');
   const [selectedDistrict, setSelectedDistrict] = useState<string>('ALL');
 
   // Form State
@@ -31,15 +57,33 @@ export default function Dashboard() {
   // Operational Action States
   const [actionSuccess, setActionSuccess] = useState('');
 
-  // Mouse Tracking State
-  const [mousePos, setMousePos] = useState({ x: -1000, y: -1000 });
+  // Mouse & Keyboard Tracking State
+  const [pointerPos, setPointerPos] = useState({ x: -100, y: -100, isKeyboard: false });
 
+  // Event Listener for Mouse & Keyboard Focus Tracking
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      setMousePos({ x: e.clientX, y: e.clientY });
+      setPointerPos({ x: e.clientX, y: e.clientY, isKeyboard: false });
     };
+
+    const handleFocusIn = (e: FocusEvent) => {
+      const target = e.target as HTMLElement;
+      if (target && target.getBoundingClientRect) {
+        const rect = target.getBoundingClientRect();
+        setPointerPos({
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2,
+          isKeyboard: true,
+        });
+      }
+    };
+
     window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
+    window.addEventListener('focusin', handleFocusIn);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('focusin', handleFocusIn);
+    };
   }, []);
 
   useEffect(() => {
@@ -79,7 +123,7 @@ export default function Dashboard() {
         return;
       }
 
-      const roleMap: Record<string, typeof userRole> = {
+      const roleMap: Record<string, UserRole> = {
         district: 'District Manager',
         school: 'School Principal',
         provincial: 'Provincial Leadership',
@@ -90,7 +134,7 @@ export default function Dashboard() {
       }
 
       setIsLoggedIn(true);
-    } catch (err) {
+    } catch {
       setLoginError('Unable to connect to authentication server.');
     } finally {
       setIsSubmitting(false);
@@ -111,15 +155,31 @@ export default function Dashboard() {
   const netDesks = totalCapacity - totalEnrollment;
   const overcrowdedCount = filteredSchools.filter(s => s.available_desks < 0).length;
 
+  const activeTheme = ROLE_THEMES[userRole];
+
   return (
     <div className="relative min-h-screen bg-slate-950 text-slate-100 font-sans overflow-hidden selection:bg-amber-500 selection:text-slate-950">
-      {/* Mouse Tracking Radial Spotlight */}
+      
+      {/* Dynamic Role-Based Ambient Spotlight */}
       <div 
         className="pointer-events-none fixed inset-0 z-30 transition-opacity duration-300"
         style={{
-          background: `radial-gradient(650px circle at ${mousePos.x}px ${mousePos.y}px, rgba(245, 158, 11, 0.08), transparent 80%)`,
+          background: `radial-gradient(600px circle at ${pointerPos.x}px ${pointerPos.y}px, ${activeTheme.glowRgb}, transparent 80%)`,
         }}
       />
+
+      {/* Dynamic Cursor Target Ring (Mouse & Keyboard Tracking Visual) */}
+      <div
+        className="pointer-events-none fixed z-50 flex items-center justify-center transition-transform duration-75 ease-out -translate-x-1/2 -translate-y-1/2"
+        style={{
+          left: `${pointerPos.x}px`,
+          top: `${pointerPos.y}px`,
+        }}
+      >
+        <div className={`w-8 h-8 rounded-full border-2 ${activeTheme.ringBorder} ${pointerPos.isKeyboard ? 'animate-ping' : 'animate-pulse'} opacity-80 flex items-center justify-center shadow-lg shadow-black/50`}>
+          <div className={`w-2 h-2 rounded-full ${activeTheme.dotBg}`} />
+        </div>
+      </div>
 
       {/* Ambient Grid Pattern */}
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,#1e293b15_1px,transparent_1px),linear-gradient(to_bottom,#1e293b15_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
@@ -216,10 +276,10 @@ export default function Dashboard() {
           <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800/80 pb-6">
             <div>
               <div className="flex items-center gap-3">
-                <h1 className="text-3xl font-black tracking-tight text-white hover:text-amber-400 transition-colors cursor-default">
-                  GD<span className="text-amber-400">-CAP</span>
+                <h1 className="text-3xl font-black tracking-tight text-white transition-colors cursor-default">
+                  GD<span className={activeTheme.textAccent}>-CAP</span>
                 </h1>
-                <span className="bg-amber-500/10 border border-amber-500/30 text-amber-400 px-3 py-0.5 rounded-full text-xs font-semibold animate-pulse">
+                <span className={`border px-3 py-0.5 rounded-full text-xs font-semibold animate-pulse ${activeTheme.badgeBg}`}>
                   {userRole} Mode
                 </span>
               </div>
@@ -233,7 +293,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-4">
               <div className="text-right hidden sm:block">
                 <p className="text-xs text-slate-400">Authorized Personnel</p>
-                <p className="text-xs font-bold text-amber-400">{userRole}</p>
+                <p className={`text-xs font-bold ${activeTheme.textAccent}`}>{userRole}</p>
               </div>
               <button
                 onClick={() => setIsLoggedIn(false)}
@@ -252,9 +312,7 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* ROLE SPECIFIC TOP EXECUTIVE MODULES */}
-          
-          {/* 1. PROVINCIAL LEADERSHIP EXECUTIVE VIEW */}
+          {/* Role-Specific Views */}
           {userRole === 'Provincial Leadership' && (
             <div className="space-y-6 mb-8">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -282,7 +340,6 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Provincial Control Card */}
               <div className="bg-slate-900/80 border border-amber-500/20 p-6 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4">
                 <div>
                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
@@ -291,19 +348,16 @@ export default function Dashboard() {
                   </h3>
                   <p className="text-xs text-slate-400 mt-1">Authorize fast-track modular classroom deployment for districts experiencing over 110% capacity load.</p>
                 </div>
-                <div className="flex items-center gap-3 w-full md:w-auto">
-                  <button 
-                    onClick={() => triggerAction('Emergency R12.5M Modular Budget Dispatched to High-Risk Districts.')}
-                    className="w-full md:w-auto bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2.5 rounded-lg text-xs tracking-wider uppercase transition active:scale-95 shadow-md shadow-amber-500/20"
-                  >
-                    Release Emergency Modular Budget
-                  </button>
-                </div>
+                <button 
+                  onClick={() => triggerAction('Emergency R12.5M Modular Budget Dispatched to High-Risk Districts.')}
+                  className="w-full md:w-auto bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2.5 rounded-lg text-xs tracking-wider uppercase transition active:scale-95 shadow-md shadow-amber-500/20"
+                >
+                  Release Emergency Modular Budget
+                </button>
               </div>
             </div>
           )}
 
-          {/* 2. DISTRICT MANAGER VIEW */}
           {userRole === 'District Manager' && (
             <div className="space-y-6 mb-8">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -323,7 +377,6 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* District Balancing Bar */}
               <div className="bg-slate-900/80 border border-slate-800 p-6 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4">
                 <div>
                   <h3 className="text-md font-bold text-white">Inter-School Resource Balancing Tool</h3>
@@ -339,7 +392,6 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* 3. SCHOOL PRINCIPAL VIEW */}
           {userRole === 'School Principal' && (
             <div className="space-y-6 mb-8">
               <div className="bg-slate-900/80 border border-slate-800 p-6 rounded-2xl">
@@ -387,7 +439,7 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* District Filter Bar (Shared for District & Provincial) */}
+          {/* District Filter Bar */}
           {userRole !== 'School Principal' && (
             <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
               <div className="flex items-center gap-2">
@@ -398,7 +450,7 @@ export default function Dashboard() {
                     onClick={() => setSelectedDistrict(district)}
                     className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 active:scale-95 ${
                       selectedDistrict === district
-                        ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/20 scale-105'
+                        ? `${activeTheme.dotBg} text-slate-950 font-bold shadow-md scale-105`
                         : 'bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white'
                     }`}
                   >
@@ -409,7 +461,7 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Shared PostGIS Data Table */}
+          {/* Data Table */}
           <div className="bg-slate-900/60 backdrop-blur-md border border-slate-800/80 rounded-2xl shadow-xl overflow-hidden">
             <div className="p-6 border-b border-slate-800/80 flex justify-between items-center">
               <h2 className="text-lg font-bold text-white">Live District Capacity Returns</h2>
@@ -419,7 +471,7 @@ export default function Dashboard() {
             {loading ? (
               <div className="p-12 text-center text-slate-400 animate-pulse flex flex-col items-center justify-center gap-3">
                 <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
-                Querying Neon PostGIS Engine...
+                Querying PostGIS Engine...
               </div>
             ) : (
               <div className="overflow-x-auto">
